@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:provider/provider.dart';
 import '../models/editor_state.dart';
 
@@ -51,9 +50,13 @@ class _ColorPickerSectionState extends State<ColorPickerSection> {
   }
 
   String _colorToHex(Color color) {
-    return '${color.r.toInt().toRadixString(16).padLeft(2, '0')}'
-        '${color.g.toInt().toRadixString(16).padLeft(2, '0')}'
-        '${color.b.toInt().toRadixString(16).padLeft(2, '0')}'
+    // In Flutter 3.x, color.r/g/b are 0.0-1.0, need to multiply by 255
+    final r = (color.r * 255).round();
+    final g = (color.g * 255).round();
+    final b = (color.b * 255).round();
+    return '${r.toRadixString(16).padLeft(2, '0')}'
+        '${g.toRadixString(16).padLeft(2, '0')}'
+        '${b.toRadixString(16).padLeft(2, '0')}'
         .toUpperCase();
   }
 
@@ -65,76 +68,6 @@ class _ColorPickerSectionState extends State<ColorPickerSection> {
     return _currentColor;
   }
 
-  void _showColorWheelDialog(BuildContext context, EditorState state) {
-    Color pickerColor = _currentColor;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Pick a Color'),
-        content: SingleChildScrollView(
-          child: ColorPicker(
-            pickerColor: pickerColor,
-            onColorChanged: (color) {
-              pickerColor = color;
-            },
-            enableAlpha: false,
-            hexInputBar: true,
-            labelTypes: const [],
-            pickerAreaHeightPercent: 0.8,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              _applyColorToState(pickerColor, state);
-              Navigator.of(context).pop();
-            },
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showHueRingDialog(BuildContext context, EditorState state) {
-    Color pickerColor = _currentColor;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Color Wheel'),
-        content: SingleChildScrollView(
-          child: HueRingPicker(
-            pickerColor: pickerColor,
-            onColorChanged: (color) {
-              pickerColor = color;
-            },
-            enableAlpha: false,
-            displayThumbColor: true,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              _applyColorToState(pickerColor, state);
-              Navigator.of(context).pop();
-            },
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Consumer<EditorState>(
@@ -144,6 +77,16 @@ class _ColorPickerSectionState extends State<ColorPickerSection> {
         final saturation = (state.saturation / 2).clamp(0.0, 1.0);
         final brightness = (state.brightness / 2).clamp(0.0, 1.0);
         _currentColor = HSVColor.fromAHSV(1.0, hue, saturation, brightness).toColor();
+
+        // Update hex controller to reflect current color after frame completes
+        final hexValue = _colorToHex(_currentColor);
+        if (_hexController.text != hexValue) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _hexController.text != hexValue) {
+              _hexController.text = hexValue;
+            }
+          });
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,23 +102,20 @@ class _ColorPickerSectionState extends State<ColorPickerSection> {
             Row(
               children: [
                 // Color preview swatch
-                GestureDetector(
-                  onTap: () => _showColorWheelDialog(context, state),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: _currentColor,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.grey[400]!),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 2,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: _currentColor,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.grey[400]!),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 2,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -213,31 +153,6 @@ class _ColorPickerSectionState extends State<ColorPickerSection> {
                           _applyColorToState(color, state);
                         }
                       },
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Color wheel button
-                IconButton(
-                  onPressed: () => _showHueRingDialog(context, state),
-                  icon: const Icon(Icons.palette),
-                  tooltip: 'Color Wheel',
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.grey[100],
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-                // Full color picker button
-                IconButton(
-                  onPressed: () => _showColorWheelDialog(context, state),
-                  icon: const Icon(Icons.colorize),
-                  tooltip: 'Color Picker',
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.grey[100],
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                 ),
