@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/editor_state.dart';
+import 'color_picker_section.dart';
 
 class HSBSliders extends StatefulWidget {
   const HSBSliders({super.key});
@@ -80,6 +81,10 @@ class _HSBSlidersState extends State<HSBSliders> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              const SizedBox(height: 20),
+
+              // Color picker section
+              const ColorPickerSection(),
               const SizedBox(height: 24),
 
               // Hue slider

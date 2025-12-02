@@ -1,0 +1,262 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:provider/provider.dart';
+import '../models/editor_state.dart';
+
+class ColorPickerSection extends StatefulWidget {
+  const ColorPickerSection({super.key});
+
+  @override
+  State<ColorPickerSection> createState() => _ColorPickerSectionState();
+}
+
+class _ColorPickerSectionState extends State<ColorPickerSection> {
+  late TextEditingController _hexController;
+  Color _currentColor = const Color(0xFFAAAAAA); // Default gray (no tint)
+
+  @override
+  void initState() {
+    super.initState();
+    _hexController = TextEditingController(text: 'AAAAAA');
+  }
+
+  @override
+  void dispose() {
+    _hexController.dispose();
+    super.dispose();
+  }
+
+  void _applyColorToState(Color color, EditorState state) {
+    // Convert color to HSV
+    final hsv = HSVColor.fromColor(color);
+
+    // Set hue (-180 to 180 range, color wheel is 0-360)
+    double hue = hsv.hue;
+    if (hue > 180) hue -= 360;
+    state.setHue(hue);
+
+    // Set saturation (0-1 in HSV, we use 0-2 scale)
+    state.setSaturation(hsv.saturation * 2);
+
+    // Set brightness/value
+    state.setBrightness(hsv.value * 2);
+
+    setState(() {
+      _currentColor = color;
+      _hexController.text = _colorToHex(color);
+    });
+  }
+
+  String _colorToHex(Color color) {
+    return '${color.r.toInt().toRadixString(16).padLeft(2, '0')}'
+        '${color.g.toInt().toRadixString(16).padLeft(2, '0')}'
+        '${color.b.toInt().toRadixString(16).padLeft(2, '0')}'
+        .toUpperCase();
+  }
+
+  Color _hexToColor(String hex) {
+    hex = hex.replaceAll('#', '');
+    if (hex.length == 6) {
+      return Color(int.parse('FF$hex', radix: 16));
+    }
+    return _currentColor;
+  }
+
+  void _showColorWheelDialog(BuildContext context, EditorState state) {
+    Color pickerColor = _currentColor;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pick a Color'),
+        content: SingleChildScrollView(
+          child: ColorPicker(
+            pickerColor: pickerColor,
+            onColorChanged: (color) {
+              pickerColor = color;
+            },
+            enableAlpha: false,
+            hexInputBar: true,
+            labelTypes: const [],
+            pickerAreaHeightPercent: 0.8,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _applyColorToState(pickerColor, state);
+              Navigator.of(context).pop();
+            },
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showHueRingDialog(BuildContext context, EditorState state) {
+    Color pickerColor = _currentColor;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Color Wheel'),
+        content: SingleChildScrollView(
+          child: HueRingPicker(
+            pickerColor: pickerColor,
+            onColorChanged: (color) {
+              pickerColor = color;
+            },
+            enableAlpha: false,
+            displayThumbColor: true,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _applyColorToState(pickerColor, state);
+              Navigator.of(context).pop();
+            },
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<EditorState>(
+      builder: (context, state, _) {
+        // Update current color based on state
+        final hue = state.hue < 0 ? state.hue + 360 : state.hue;
+        final saturation = (state.saturation / 2).clamp(0.0, 1.0);
+        final brightness = (state.brightness / 2).clamp(0.0, 1.0);
+        _currentColor = HSVColor.fromAHSV(1.0, hue, saturation, brightness).toColor();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Color',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                // Color preview swatch
+                GestureDetector(
+                  onTap: () => _showColorWheelDialog(context, state),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _currentColor,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.grey[400]!),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 2,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Hex input
+                Expanded(
+                  child: SizedBox(
+                    height: 40,
+                    child: TextField(
+                      controller: _hexController,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontFamily: 'monospace',
+                      ),
+                      decoration: InputDecoration(
+                        prefixText: '#',
+                        prefixStyle: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                          fontFamily: 'monospace',
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        isDense: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9a-fA-F]')),
+                        LengthLimitingTextInputFormatter(6),
+                        UpperCaseTextFormatter(),
+                      ],
+                      onSubmitted: (value) {
+                        if (value.length == 6) {
+                          final color = _hexToColor(value);
+                          _applyColorToState(color, state);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Color wheel button
+                IconButton(
+                  onPressed: () => _showHueRingDialog(context, state),
+                  icon: const Icon(Icons.palette),
+                  tooltip: 'Color Wheel',
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.grey[100],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                // Full color picker button
+                IconButton(
+                  onPressed: () => _showColorWheelDialog(context, state),
+                  icon: const Icon(Icons.colorize),
+                  tooltip: 'Color Picker',
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.grey[100],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+    );
+  }
+}
