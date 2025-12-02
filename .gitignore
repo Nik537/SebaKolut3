@@ -1,0 +1,18 @@
+# Flutter/Dart
+silk_color_editor/build/
+silk_color_editor/.dart_tool/
+silk_color_editor/.packages
+silk_color_editor/.pub-cache/
+silk_color_editor/.pub/
+silk_color_editor/*.iml
+silk_color_editor/.idea/
+silk_color_editor/.vscode/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Claude
+.claude/
