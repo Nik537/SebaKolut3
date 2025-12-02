@@ -170,3 +170,53 @@ List<double> buildCombinedHSBMatrix({
   matrix = multiplyColorMatrices(matrix, buildBrightnessMatrix(brightness));
   return matrix;
 }
+
+/// Build a colorization matrix that tints a grayscale image with a target color
+/// targetHue: 0-360 (color wheel position)
+/// colorIntensity: 0-1 (0 = grayscale, 1 = fully colorized)
+/// brightness: 0-2 (1 = normal, 2 = max)
+List<double> buildColorizationMatrix({
+  required double targetHue,
+  required double colorIntensity,
+  required double brightness,
+}) {
+  // Luminance weights (standard Rec. 709)
+  const lr = 0.2126;
+  const lg = 0.7152;
+  const lb = 0.0722;
+
+  // Convert target hue to RGB (at full saturation and value)
+  final targetRgb = hsbToRgb(targetHue, 1.0, 1.0);
+  final tr = targetRgb.r;
+  final tg = targetRgb.g;
+  final tb = targetRgb.b;
+
+  // Clamp intensity to 0-1
+  final s = colorIntensity.clamp(0.0, 1.0);
+  final ns = 1 - s;
+
+  // Brightness multiplier
+  final b = brightness;
+
+  // This matrix:
+  // - When s=0: converts to grayscale (preserves luminance)
+  // - When s=1: fully colorizes with target color
+  // - The brightness multiplier scales all output
+  //
+  // For a pixel (R,G,B), the luminance L = lr*R + lg*G + lb*B
+  // Output colorized: (L*tr, L*tg, L*tb)
+  // Output grayscale: (L, L, L)
+  // Blend: (ns*L + s*L*tr, ns*L + s*L*tg, ns*L + s*L*tb)
+  //      = (L*(ns + s*tr), L*(ns + s*tg), L*(ns + s*tb))
+
+  final r_mult = ns + s * tr;
+  final g_mult = ns + s * tg;
+  final b_mult = ns + s * tb;
+
+  return [
+    b * r_mult * lr, b * r_mult * lg, b * r_mult * lb, 0, 0,
+    b * g_mult * lr, b * g_mult * lg, b * g_mult * lb, 0, 0,
+    b * b_mult * lr, b * b_mult * lg, b * b_mult * lb, 0, 0,
+    0, 0, 0, 1, 0,
+  ];
+}

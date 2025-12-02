@@ -36,10 +36,12 @@ class _ColorPickerSectionState extends State<ColorPickerSection> {
     if (hue > 180) hue -= 360;
     state.setHue(hue);
 
-    // Set saturation (0-1 in HSV, we use 0-2 scale)
-    state.setSaturation(hsv.saturation * 2);
+    // Set saturation (0-1 for colorization intensity)
+    // Use the HSV saturation directly as colorization intensity
+    state.setSaturation(hsv.saturation);
 
-    // Set brightness/value
+    // Set brightness/value (1.0 = normal, use value to scale)
+    // Map HSV value 0-1 to brightness 0-2 (so value=1 gives brightness=2 for full color)
     state.setBrightness(hsv.value * 2);
 
     setState(() {

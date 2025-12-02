@@ -106,12 +106,12 @@ class _HSBSlidersState extends State<HSBSliders> {
               ),
               const SizedBox(height: 20),
 
-              // Saturation slider
+              // Saturation slider (colorization intensity: 0 = original, 100% = full color)
               _buildSliderSection(
                 label: 'Saturation',
                 value: state.saturation,
                 min: 0,
-                max: 2,
+                max: 1,
                 suffix: '%',
                 isPercentage: true,
                 controller: _saturationController,
@@ -119,7 +119,7 @@ class _HSBSlidersState extends State<HSBSliders> {
                 onTextSubmitted: (text) {
                   final parsed = double.tryParse(text);
                   if (parsed != null) {
-                    state.setSaturation((parsed / 100).clamp(0, 2));
+                    state.setSaturation((parsed / 100).clamp(0, 1));
                   }
                 },
                 activeColor: Colors.blue,
@@ -154,7 +154,7 @@ class _HSBSlidersState extends State<HSBSliders> {
                   onPressed: () {
                     context.read<EditorState>().resetToDefaults();
                     _hueController.text = '0';
-                    _saturationController.text = '100';
+                    _saturationController.text = '0';
                     _brightnessController.text = '100';
                   },
                   icon: const Icon(Icons.refresh),

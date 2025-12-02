@@ -4,7 +4,7 @@ import '../utils/hsb_utils.dart';
 
 class EditorState extends ChangeNotifier {
   double _hue = 0; // -180 to 180
-  double _saturation = 1.0; // 0 to 2
+  double _saturation = 0; // 0 to 1 (colorization intensity: 0 = original, 1 = full color)
   double _brightness = 1.0; // 0 to 2
 
   bool _isExporting = false;
@@ -24,7 +24,7 @@ class EditorState extends ChangeNotifier {
   }
 
   void setSaturation(double value) {
-    _saturation = value.clamp(0.0, 2.0);
+    _saturation = value.clamp(0.0, 1.0);
     notifyListeners();
   }
 
@@ -35,7 +35,7 @@ class EditorState extends ChangeNotifier {
 
   void resetToDefaults() {
     _hue = 0;
-    _saturation = 1.0;
+    _saturation = 0; // No colorization by default
     _brightness = 1.0;
     notifyListeners();
   }
@@ -47,9 +47,13 @@ class EditorState extends ChangeNotifier {
 
   /// Get ColorFilter for real-time preview
   ColorFilter get previewColorFilter {
-    final matrix = buildCombinedHSBMatrix(
-      hue: _hue,
-      saturation: _saturation,
+    // Convert hue from -180..180 to 0..360
+    final targetHue = _hue < 0 ? _hue + 360 : _hue;
+
+    // Use colorization matrix for proper tinting
+    final matrix = buildColorizationMatrix(
+      targetHue: targetHue,
+      colorIntensity: _saturation.clamp(0.0, 1.0), // 0-1 range for colorization
       brightness: _brightness,
     );
     return ColorFilter.matrix(matrix);
