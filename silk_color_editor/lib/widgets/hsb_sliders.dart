@@ -15,6 +15,8 @@ class _HSBSlidersState extends State<HSBSliders> {
   late TextEditingController _hueController;
   late TextEditingController _saturationController;
   late TextEditingController _brightnessController;
+  late TextEditingController _highlightsController;
+  late TextEditingController _shadowsController;
 
   @override
   void initState() {
@@ -22,6 +24,8 @@ class _HSBSlidersState extends State<HSBSliders> {
     _hueController = TextEditingController();
     _saturationController = TextEditingController();
     _brightnessController = TextEditingController();
+    _highlightsController = TextEditingController();
+    _shadowsController = TextEditingController();
   }
 
   @override
@@ -29,6 +33,8 @@ class _HSBSlidersState extends State<HSBSliders> {
     _hueController.dispose();
     _saturationController.dispose();
     _brightnessController.dispose();
+    _highlightsController.dispose();
+    _shadowsController.dispose();
     super.dispose();
   }
 
@@ -60,6 +66,14 @@ class _HSBSlidersState extends State<HSBSliders> {
           if (!_brightnessController.text.contains(RegExp(r'[0-9]')) ||
               double.tryParse(_brightnessController.text) != (state.brightness * 100)) {
             _updateControllerIfNeeded(_brightnessController, (state.brightness * 100).toStringAsFixed(0));
+          }
+          if (!_highlightsController.text.contains(RegExp(r'[0-9-]')) ||
+              double.tryParse(_highlightsController.text) != (state.highlights * 100)) {
+            _updateControllerIfNeeded(_highlightsController, (state.highlights * 100).toStringAsFixed(0));
+          }
+          if (!_shadowsController.text.contains(RegExp(r'[0-9-]')) ||
+              double.tryParse(_shadowsController.text) != (state.shadows * 100)) {
+            _updateControllerIfNeeded(_shadowsController, (state.shadows * 100).toStringAsFixed(0));
           }
         });
 
@@ -144,6 +158,46 @@ class _HSBSlidersState extends State<HSBSliders> {
                 },
                 activeColor: Colors.orange,
               ),
+              const SizedBox(height: 20),
+
+              // Highlights slider
+              _buildSliderSection(
+                label: 'Highlights',
+                value: state.highlights,
+                min: -1,
+                max: 1,
+                suffix: '%',
+                isPercentage: true,
+                controller: _highlightsController,
+                onChanged: state.setHighlights,
+                onTextSubmitted: (text) {
+                  final parsed = double.tryParse(text);
+                  if (parsed != null) {
+                    state.setHighlights((parsed / 100).clamp(-1, 1));
+                  }
+                },
+                activeColor: Colors.yellow.shade700,
+              ),
+              const SizedBox(height: 20),
+
+              // Shadows slider
+              _buildSliderSection(
+                label: 'Shadows',
+                value: state.shadows,
+                min: -1,
+                max: 1,
+                suffix: '%',
+                isPercentage: true,
+                controller: _shadowsController,
+                onChanged: state.setShadows,
+                onTextSubmitted: (text) {
+                  final parsed = double.tryParse(text);
+                  if (parsed != null) {
+                    state.setShadows((parsed / 100).clamp(-1, 1));
+                  }
+                },
+                activeColor: Colors.grey.shade700,
+              ),
 
               const Spacer(),
 
@@ -156,6 +210,8 @@ class _HSBSlidersState extends State<HSBSliders> {
                     _hueController.text = '0';
                     _saturationController.text = '0';
                     _brightnessController.text = '100';
+                    _highlightsController.text = '0';
+                    _shadowsController.text = '0';
                   },
                   icon: const Icon(Icons.refresh),
                   label: const Text('Reset to Defaults'),

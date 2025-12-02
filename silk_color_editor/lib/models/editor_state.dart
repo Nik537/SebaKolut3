@@ -6,6 +6,8 @@ class EditorState extends ChangeNotifier {
   double _hue = 0; // -180 to 180
   double _saturation = 0; // 0 to 1 (colorization intensity: 0 = original, 1 = full color)
   double _brightness = 1.0; // 0 to 2
+  double _highlights = 0; // -1 to 1 (affects bright areas)
+  double _shadows = 0; // -1 to 1 (affects dark areas)
 
   bool _isExporting = false;
   Uint8List? _baseImageBytes;
@@ -14,6 +16,8 @@ class EditorState extends ChangeNotifier {
   double get hue => _hue;
   double get saturation => _saturation;
   double get brightness => _brightness;
+  double get highlights => _highlights;
+  double get shadows => _shadows;
   bool get isExporting => _isExporting;
   Uint8List? get baseImageBytes => _baseImageBytes;
   Uint8List? get overlayImageBytes => _overlayImageBytes;
@@ -33,10 +37,22 @@ class EditorState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setHighlights(double value) {
+    _highlights = value.clamp(-1.0, 1.0);
+    notifyListeners();
+  }
+
+  void setShadows(double value) {
+    _shadows = value.clamp(-1.0, 1.0);
+    notifyListeners();
+  }
+
   void resetToDefaults() {
     _hue = 0;
     _saturation = 0; // No colorization by default
     _brightness = 1.0;
+    _highlights = 0;
+    _shadows = 0;
     notifyListeners();
   }
 
@@ -50,11 +66,13 @@ class EditorState extends ChangeNotifier {
     // Convert hue from -180..180 to 0..360
     final targetHue = _hue < 0 ? _hue + 360 : _hue;
 
-    // Use colorization matrix for proper tinting
+    // Use colorization matrix for proper tinting with highlights/shadows
     final matrix = buildColorizationMatrix(
       targetHue: targetHue,
       colorIntensity: _saturation.clamp(0.0, 1.0), // 0-1 range for colorization
       brightness: _brightness,
+      highlights: _highlights,
+      shadows: _shadows,
     );
     return ColorFilter.matrix(matrix);
   }

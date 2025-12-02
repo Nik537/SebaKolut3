@@ -171,14 +171,20 @@ List<double> buildCombinedHSBMatrix({
   return matrix;
 }
 
-/// Build a colorization matrix that tints a grayscale image with a target color
+/// Build a colorization matrix that tints an image with a target color
+/// while applying brightness, highlights, and shadows adjustments.
+///
 /// targetHue: 0-360 (color wheel position)
-/// colorIntensity: 0-1 (0 = grayscale, 1 = fully colorized)
-/// brightness: 0-2 (1 = normal, 2 = max)
+/// colorIntensity: 0-1 (0 = original colors, 1 = fully colorized)
+/// brightness: 0-2 (1 = normal, 0 = black, 2 = 2x bright)
+/// highlights: -1 to 1 (adjusts bright areas, +1 = white)
+/// shadows: -1 to 1 (adjusts dark areas, +1 = lift, -1 = crush)
 List<double> buildColorizationMatrix({
   required double targetHue,
   required double colorIntensity,
   required double brightness,
+  double highlights = 0,
+  double shadows = 0,
 }) {
   // Luminance weights (standard Rec. 709)
   const lr = 0.2126;
@@ -192,31 +198,91 @@ List<double> buildColorizationMatrix({
   final tb = targetRgb.b;
 
   // Clamp intensity to 0-1
-  final s = colorIntensity.clamp(0.0, 1.0);
-  final ns = 1 - s;
+  final double s = colorIntensity.clamp(0.0, 1.0);
+  final double ns = 1.0 - s;
 
-  // Brightness multiplier
-  final b = brightness;
-
-  // This matrix:
-  // - When s=0: converts to grayscale (preserves luminance)
-  // - When s=1: fully colorizes with target color
-  // - The brightness multiplier scales all output
-  //
-  // For a pixel (R,G,B), the luminance L = lr*R + lg*G + lb*B
-  // Output colorized: (L*tr, L*tg, L*tb)
-  // Output grayscale: (L, L, L)
-  // Blend: (ns*L + s*L*tr, ns*L + s*L*tg, ns*L + s*L*tb)
-  //      = (L*(ns + s*tr), L*(ns + s*tg), L*(ns + s*tb))
-
-  final r_mult = ns + s * tr;
-  final g_mult = ns + s * tg;
-  final b_mult = ns + s * tb;
-
-  return [
-    b * r_mult * lr, b * r_mult * lg, b * r_mult * lb, 0, 0,
-    b * g_mult * lr, b * g_mult * lg, b * g_mult * lb, 0, 0,
-    b * b_mult * lr, b * b_mult * lg, b * b_mult * lb, 0, 0,
-    0, 0, 0, 1, 0,
+  // Build base colorization matrix
+  // Strategy: Blend between original pixel colors and colorized version
+  var baseMatrix = <double>[
+    // R row: blend original R with colorized R
+    ns + s * tr * lr, s * tr * lg, s * tr * lb, 0.0, 0.0,
+    // G row: blend original G with colorized G
+    s * tg * lr, ns + s * tg * lg, s * tg * lb, 0.0, 0.0,
+    // B row: blend original B with colorized B
+    s * tb * lr, s * tb * lg, ns + s * tb * lb, 0.0, 0.0,
+    // Alpha row: unchanged
+    0.0, 0.0, 0.0, 1.0, 0.0,
   ];
+
+  // Apply brightness as a multiplier to the matrix coefficients
+  // brightness = 1.0 means no change, 0 = black, 2 = 2x bright
+  final double b = brightness.clamp(0.0, 2.0);
+
+  // Highlights: At max (+1), produce pure white (#ffffff)
+  // At min (-1), darken the image significantly
+  // We achieve white by: setting high offset + reducing contrast
+  // At highlights = 1: offset = 1.0 (full white), slope reduced
+  // At highlights = -1: offset = -0.5 (darken), slope increased
+  final double h = highlights.clamp(-1.0, 1.0);
+
+  // Shadows: At max (+1), lift blacks significantly (towards white)
+  // At min (-1), crush to pure black (#000000)
+  // We achieve black by: negative offset + increased contrast
+  // At shadows = 1: lift blacks with positive offset
+  // At shadows = -1: negative offset to crush blacks
+  final double sh = shadows.clamp(-1.0, 1.0);
+
+  // For highlights and shadows, we use a simpler, more direct approach:
+  // The color matrix formula is: output = input * slope + offset
+  //
+  // Highlights at +1 (100%): We want pure white (#ffffff)
+  //   - Set slope to 0 (ignore input) and offset to 1.0 (full white)
+  // Highlights at -1 (-100%): Darken the image
+  //   - Reduce slope to darken
+  //
+  // Shadows at -1 (-100%): We want pure black (#000000)
+  //   - Set slope high and offset to -1.0 (crush to black)
+  // Shadows at +1 (100%): Lift shadows (brighten darks)
+  //   - Add positive offset
+
+  // Highlights: interpolate between normal (slope=1, offset=0) and white (slope=0, offset=1)
+  double highlightSlope = 1.0;
+  double highlightOffset = 0.0;
+  if (h > 0) {
+    // At h=1: slope=0, offset=1 (pure white)
+    highlightSlope = 1.0 - h;
+    highlightOffset = h;
+  } else if (h < 0) {
+    // At h=-1: darken by reducing slope
+    highlightSlope = 1.0 + (h * 0.5); // At -1: slope = 0.5
+    highlightOffset = 0.0;
+  }
+
+  // Shadows: interpolate between normal and black
+  double shadowSlope = 1.0;
+  double shadowOffset = 0.0;
+  if (sh < 0) {
+    // At sh=-1: slope stays 1, offset=-1 (push everything to black)
+    shadowOffset = sh; // At -1: offset = -1.0
+  } else if (sh > 0) {
+    // At sh=1: lift blacks by adding offset
+    shadowOffset = sh * 0.5; // At +1: offset = 0.5
+  }
+
+  // Combine: apply brightness first, then highlights/shadows adjustments
+  final double totalSlope = b * highlightSlope * shadowSlope;
+  final double totalOffset = highlightOffset + shadowOffset;
+
+  // Apply to matrix
+  // Note: Flutter's ColorFilter.matrix expects offset values in 0-255 range
+  for (int row = 0; row < 3; row++) {
+    // Multiply each coefficient by total slope
+    for (int col = 0; col < 3; col++) {
+      baseMatrix[row * 5 + col] = baseMatrix[row * 5 + col] * totalSlope;
+    }
+    // Add offset for highlights/shadows (multiply by 255 for Flutter's expected range)
+    baseMatrix[row * 5 + 4] = totalOffset * 255.0;
+  }
+
+  return baseMatrix;
 }
