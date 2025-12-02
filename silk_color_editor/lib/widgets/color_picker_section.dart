@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/editor_state.dart';
+import 'filament_analyzer.dart';
 
 class ColorPickerSection extends StatefulWidget {
   const ColorPickerSection({super.key});
@@ -153,6 +154,24 @@ class _ColorPickerSectionState extends State<ColorPickerSection> {
                           _applyColorToState(color, state);
                         }
                       },
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Filament analyzer button
+                IconButton(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => const FilamentAnalyzer(),
+                    );
+                  },
+                  icon: const Icon(Icons.camera_alt),
+                  tooltip: 'Analyze filament photos with AI',
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.grey[100],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                 ),
